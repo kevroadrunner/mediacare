@@ -20,45 +20,45 @@ REPAIR_MINUTES="${REPAIR_MINUTES:-20}"
 # ============================================================
 # Structured logging
 #
-# Emit one JSON object per line. Dozzle can parse the JSON fields and
-# detect the severity from "level" (info, warn, error).
+# Emit one JSON object per line. Dozzle recognizes OpenTelemetry-style
+# severityText and severityNumber fields.
+#
+# OpenTelemetry severity ranges:
+# DEBUG = 5-8, INFO = 9-12, WARN = 13-16, ERROR = 17-20.
 # ============================================================
 
-log() {
-    local level="info"
-    local message="$*"
-    local timestamp
-
-    case "${message}" in
-        ERROR:*|ERROR\ *)
-            level="error"
-            message="${message#ERROR: }"
-            ;;
-        WARNING:*|WARNING\ *)
-            level="warn"
-            message="${message#WARNING: }"
-            ;;
-    esac
-
-    timestamp="$(date --iso-8601=seconds)"
+log_event() {
+    local severity_text="$1"
+    local severity_number="$2"
+    shift 2
 
     jq -cn \
-        --arg time "${timestamp}" \
-        --arg level "${level}" \
-        --arg msg "${message}" \
-        '{time: $time, level: $level, msg: $msg}'
+        --arg timestamp "$(date --iso-8601=seconds)" \
+        --arg severityText "${severity_text}" \
+        --argjson severityNumber "${severity_number}" \
+        --arg body "$*" \
+        '{
+            timestamp: $timestamp,
+            severityText: $severityText,
+            severityNumber: $severityNumber,
+            body: $body
+        }'
+}
+
+log_debug() {
+    log_event "DEBUG" 5 "$@"
 }
 
 log_info() {
-    log "$@"
+    log_event "INFO" 9 "$@"
 }
 
 log_warning() {
-    log "WARNING: $*"
+    log_event "WARN" 13 "$@"
 }
 
 log_error() {
-    log "ERROR: $*" >&2
+    log_event "ERROR" 17 "$@"
 }
 
 is_positive_integer_or_zero() {
@@ -258,7 +258,7 @@ log_info "Removing files older than ${MAX_DAYS} days."
 while IFS= read -r -d '' file; do
     if rm -f -- "${file}"; then
         DELETED_OLD=$((DELETED_OLD + 1))
-        log_info "Deleted old file: ${file#${DATA_DIR}/}"
+        log_debug "Deleted old file: ${file#${DATA_DIR}/}"
     else
         log_error "Could not delete old file: ${file}"
         FATAL_ERROR=1
@@ -282,7 +282,7 @@ log_info "Removing leftover repair files."
 while IFS= read -r -d '' file; do
     if rm -f -- "${file}"; then
         STALE_REPAIRS=$((STALE_REPAIRS + 1))
-        log_info "Removed stale repair file: ${file#${DATA_DIR}/}"
+        log_debug "Removed stale repair file: ${file#${DATA_DIR}/}"
     else
         log_error "Could not remove stale repair file: ${file}"
         FATAL_ERROR=1
@@ -362,7 +362,7 @@ while true; do
     fi
 
     oldest_file="${oldest_record#* }"
-    log_info "Deleting oldest file to enforce size limit: ${oldest_file#${DATA_DIR}/}"
+    log_debug "Deleting oldest file to enforce size limit: ${oldest_file#${DATA_DIR}/}"
 
     if rm -f -- "${oldest_file}"; then
         DELETED_SIZE=$((DELETED_SIZE + 1))
@@ -435,7 +435,7 @@ for file in "${FILES[@]}"; do
     fi
 
     CHECKED=$((CHECKED + 1))
-    log_info "[${CURRENT_FILE}/${TOTAL_FILES}] Repairing: ${relative_file}"
+    log_debug "[${CURRENT_FILE}/${TOTAL_FILES}] Repairing: ${relative_file}"
 
     tmp_file="${file}.repairing.mp4"
     rm -f -- "${tmp_file}"
@@ -494,7 +494,7 @@ for file in "${FILES[@]}"; do
 
     REPAIRED_FILES["${relative_file}"]=1
     REPAIRED=$((REPAIRED + 1))
-    log_info "Repaired successfully: ${relative_file}"
+    log_debug "Repaired successfully: ${relative_file}"
 
     if (( CURRENT_FILE % 100 == 0 )); then
         log_info "Progress: ${CURRENT_FILE}/${TOTAL_FILES} | Checked: ${CHECKED} | Repaired: ${REPAIRED} | Skipped: ${SKIPPED} | Failed: ${FAILED}"
@@ -526,7 +526,7 @@ log_info "Removing empty directories."
 while IFS= read -r directory; do
     [[ -n "${directory}" ]] || continue
     EMPTY_DIRS=$((EMPTY_DIRS + 1))
-    log_info "Removed empty directory: ${directory#${DATA_DIR}/}"
+    log_debug "Removed empty directory: ${directory#${DATA_DIR}/}"
 done < <(
     find "${DATA_DIR}" \
         -depth \
