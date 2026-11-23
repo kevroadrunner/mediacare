@@ -4,24 +4,29 @@ FROM lscr.io/linuxserver/ffmpeg:latest
 ARG TARGETARCH=amd64
 ARG SUPERCRONIC_VERSION=0.2.33
 
-RUN apk add --no-cache \
-      bash \
-      ca-certificates \
-      coreutils \
-      curl \
-      findutils \
-      jq \
-      util-linux \
+
+ARG SUPERCRONIC_VERSION=0.2.33
+ARG TARGETARCH
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        coreutils \
+        curl \
+        findutils \
+        jq \
+        util-linux \
     && case "${TARGETARCH}" in \
          amd64) SUPERCRONIC_ARCH="amd64" ;; \
          arm64) SUPERCRONIC_ARCH="arm64" ;; \
          *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
        esac \
     && curl -fsSL \
-      "https://github.com/aptible/supercronic/releases/download/v${SUPERCRONIC_VERSION}/supercronic-linux-${SUPERCRONIC_ARCH}" \
-      -o /usr/local/bin/supercronic \
+       "https://github.com/aptible/supercronic/releases/download/v${SUPERCRONIC_VERSION}/supercronic-linux-${SUPERCRONIC_ARCH}" \
+       -o /usr/local/bin/supercronic \
     && chmod 0755 /usr/local/bin/supercronic \
-    && apk del curl
+    && rm -rf /var/lib/apt/lists/*
 
 COPY entrypoint.sh /usr/local/bin/mediacare-entrypoint
 COPY scripts/maintenance.sh /usr/local/bin/maintenance.sh
