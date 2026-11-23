@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 set -uo pipefail
 
@@ -40,7 +41,7 @@ log_event() {
         '{
             timestamp: $timestamp,
             severityText: $severityText,
-            severityNumber: $severityNumber,
+            severityNumber: $severity_number,
             body: $body
         }'
 }
@@ -437,8 +438,65 @@ for file in "${FILES[@]}"; do
     CHECKED=$((CHECKED + 1))
     log_debug "[${CURRENT_FILE}/${TOTAL_FILES}] Repairing: ${relative_file}"
 
+    # --------------------------------------------------------
+    # Check source streams before attempting the remux.
+    # Files without audio/video streams cannot be repaired with
+    # "-map 0" and should be left untouched.
+    # --------------------------------------------------------
+
+    probe_log="$(mktemp)" || {
+        log_error "Could not create temporary FFprobe log file."
+        FAILED=$((FAILED + 1))
+        continue
+    }
+
+    if ! stream_types="$(ffprobe \
+        -v error \
+        -show_entries stream=codec_type \
+        -of csv=p=0 \
+        "${file}" 2>"${probe_log}")"; then
+
+        while IFS= read -r line || [[ -n "${line}" ]]; do
+            [[ -n "${line}" ]] && log_error "FFprobe: ${line}"
+        done < "${probe_log}"
+
+        log_error "FFprobe could not inspect source file: ${relative_file}"
+
+        rm -f -- "${probe_log}"
+        FAILED=$((FAILED + 1))
+        continue
+    fi
+
+    has_supported_stream=0
+
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        if [[ "${line}" == "video" || "${line}" == "audio" ]]; then
+            has_supported_stream=1
+            break
+        fi
+    done <<< "${stream_types}"
+
+    rm -f -- "${probe_log}"
+
+    if (( has_supported_stream == 0 )); then
+        log_error "No audio or video streams found: ${relative_file}"
+        FAILED=$((FAILED + 1))
+        continue
+    fi
+
+    # --------------------------------------------------------
+    # Remux the source file.
+    # FFmpeg output is captured and emitted as structured JSON.
+    # --------------------------------------------------------
+
     tmp_file="${file}.repairing.mp4"
     rm -f -- "${tmp_file}"
+
+    ffmpeg_log="$(mktemp)" || {
+        log_error "Could not create temporary FFmpeg log file."
+        FAILED=$((FAILED + 1))
+        continue
+    }
 
     if ! ffmpeg \
         -y \
@@ -447,12 +505,20 @@ for file in "${FILES[@]}"; do
         -i "${file}" \
         -map 0 \
         -c copy \
-        "${tmp_file}"; then
+        "${tmp_file}" 2>"${ffmpeg_log}"; then
+
+        while IFS= read -r line || [[ -n "${line}" ]]; do
+            [[ -n "${line}" ]] && log_error "FFmpeg: ${line}"
+        done < "${ffmpeg_log}"
+
         log_error "FFmpeg failed: ${relative_file}"
-        rm -f -- "${tmp_file}"
+
+        rm -f -- "${tmp_file}" "${ffmpeg_log}"
         FAILED=$((FAILED + 1))
         continue
     fi
+
+    rm -f -- "${ffmpeg_log}"
 
     if [[ ! -s "${tmp_file}" ]]; then
         log_error "FFmpeg produced an empty output: ${relative_file}"

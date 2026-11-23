@@ -17,8 +17,6 @@ Build on the Unraid host (or another Docker host):
 docker build -t ghcr.io/kevroadrunner/mediacare:latest .
 ```
 
-The Dockerfile supports `amd64` and `arm64` BuildKit target architectures.
-
 ## Unraid container configuration
 
 | Setting        | Value                                    |
