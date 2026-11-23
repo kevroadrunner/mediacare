@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import fcntl
+import json
 import logging
 import os
 import shutil
@@ -12,9 +13,9 @@ import subprocess
 import sys
 import tempfile
 import time
+
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from .logging_config import configure_logging
 
 # ============================================================
 # Paths and configuration
@@ -41,7 +42,7 @@ logging.basicConfig(
   stream=sys.stdout,
 )
 
-logger = logging.getLogger("mediacare.entrypoint")
+logger = logging.getLogger("mediacare.maintenance")
 
 
 # ============================================================
