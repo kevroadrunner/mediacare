@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 set -uo pipefail
 
@@ -41,7 +40,7 @@ log_event() {
         '{
             timestamp: $timestamp,
             severityText: $severityText,
-            severityNumber: $severity_number,
+            severityNumber: $severityNumber,
             body: $body
         }'
 }
