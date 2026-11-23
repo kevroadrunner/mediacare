@@ -14,21 +14,21 @@ The container uses FFmpeg, FFprobe, Bash and Supercronic. Runtime logs are writt
 Build on the Unraid host (or another Docker host):
 
 ```bash
-docker build -t mediacare:latest .
+docker build -t ghcr.io/kevroadrunner/mediacare:latest .
 ```
 
 The Dockerfile supports `amd64` and `arm64` BuildKit target architectures.
 
 ## Unraid container configuration
 
-| Setting        | Value                            |
-|----------------|----------------------------------|
-| Name           | `mediacare`                      |
-| Repository     | `kevroadrunner/mediacare:latest` |
-| Network        | Bridge (no ports required)       |
-| Restart policy | Unless stopped                   |
-| `/data`        | `/mnt/user/media_files`          |
-| `/app`         | `/mnt/user/appdata/mediacare`    |
+| Setting        | Value                                    |
+|----------------|------------------------------------------|
+| Name           | `mediacare`                              |
+| Repository     | `ghcr.io/kevroadrunner/mediacare:latest` |
+| Network        | Bridge (no ports required)               |
+| Restart policy | Unless stopped                           |
+| `/data`        | `/mnt/user/media_files`                  |
+| `/app`         | `/mnt/user/appdata/mediacare`            |
 
 Add these environment variables:
 
