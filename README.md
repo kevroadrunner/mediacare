@@ -1,13 +1,10 @@
 # MediaCare
 
-MediaCare is a small Docker container that periodically maintains a video archive:
-- removes files older than the configured retention period;
-- enforces a maximum directory size by deleting the oldest files first;
-- remuxes eligible MP4 files without re-encoding;
-- records successfully processed files in a persistent repair index;
-- publishes the result of the latest run as JSON.
+MediaCare is written in Python and uses the Python standard library together with `croniter` for cron schedule parsing.
 
-The container uses FFmpeg, FFprobe, Bash and Supercronic. Runtime logs are written to stdout/stderr and are available through `docker logs`.
+FFmpeg and FFprobe perform media operations. A built-in Python scheduler handles periodic maintenance runs. No external cron daemon is required.
+
+Runtime logs are written as plain text to stdout and are available through `docker logs`.
 
 ## Build
 
@@ -53,7 +50,7 @@ The `/app` mount contains:
     └── repair_index.log
 ```
 
-`repair.lock` is a `flock` lock file. It is expected to remain on disk; the kernel lock is automatically released when the process exits.
+`repair.lock` is a POSIX advisory lock file. It is expected to remain on disk; the operating system releases the lock automatically when the process exits.
 
 ## Logs
 
@@ -73,20 +70,21 @@ max-file=3
 Start a maintenance run inside the running container:
 
 ```bash
-docker exec -it mediacare /usr/local/bin/run-once.sh
+docker exec -it mediacare python3 -m mediacare.maintenance
 ```
 
 The same lock is used by scheduled and manual runs, so a second run will be skipped while another one is active.
 
 ## Latest run status
 
-The latest completed run is written atomically to:
+The latest run status is written atomically to:
 
 ```text
 /app/last_run.json
 ```
 
 Possible status values:
+
 - `success`: the run completed without reported errors;
 - `warning`: one or more individual MP4 repairs failed;
 - `failed`: a fatal maintenance or status-writing error occurred.
@@ -100,3 +98,4 @@ A run skipped because another run holds the lock does not overwrite the last-run
 - FFprobe validation confirms that the output container can be parsed; it is not a full decode/integrity test of every media packet.
 - The repair index stores paths relative to `/data`.
 - Keep `/app` persistent. Removing it resets the repair history.
+- MediaCare uses Python's standard library; no `pip install` step is required.
